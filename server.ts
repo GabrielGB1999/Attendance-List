@@ -45,6 +45,16 @@ async function startServer() {
 
   app.use(express.json());
 
+  const verifyAdmin = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    const password = req.headers['x-admin-password'];
+    const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
+    if (password === adminPassword) {
+      next();
+    } else {
+      res.status(403).json({ error: 'Unauthorized: Incorrect admin password' });
+    }
+  };
+
   // API Routes
   app.get('/api/subjects', (req, res) => {
     const subjects = db.prepare('SELECT * FROM subjects').all();
@@ -57,7 +67,7 @@ async function startServer() {
     res.json({ id: result.lastInsertRowid, name });
   });
 
-  app.delete('/api/subjects/:id', (req, res) => {
+  app.delete('/api/subjects/:id', verifyAdmin, (req, res) => {
     db.prepare('DELETE FROM courses WHERE subject_id = ?').run(req.params.id);
     db.prepare('DELETE FROM subjects WHERE id = ?').run(req.params.id);
     res.json({ success: true });
@@ -74,7 +84,7 @@ async function startServer() {
     res.json({ id: result.lastInsertRowid, subject_id: req.params.id, name, schedule });
   });
 
-  app.delete('/api/courses/:id', (req, res) => {
+  app.delete('/api/courses/:id', verifyAdmin, (req, res) => {
     db.prepare('DELETE FROM courses WHERE id = ?').run(req.params.id);
     res.json({ success: true });
   });
@@ -99,7 +109,18 @@ async function startServer() {
     res.json({ success: true });
   });
 
-  app.post('/api/courses/:id/students', (req, res) => {
+  app.post('/api/courses/:id/students', (req, res, next) => {
+    // Only verify admin if students are being removed
+    const { students } = req.body;
+    const course = db.prepare('SELECT students_json FROM courses WHERE id = ?').get(req.params.id);
+    if (course) {
+      const currentStudents = JSON.parse((course as any).students_json || '[]');
+      if (students.length < currentStudents.length) {
+        return verifyAdmin(req, res, next);
+      }
+    }
+    next();
+  }, (req, res) => {
     const { students } = req.body;
     db.prepare('UPDATE courses SET students_json = ? WHERE id = ?').run(JSON.stringify(students), req.params.id);
     res.json({ success: true });
@@ -164,7 +185,7 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
+  app.listen(Number(PORT), '0.0.0.0', () => {
     console.log(`Server running on http://localhost:${PORT}`);
   });
 }

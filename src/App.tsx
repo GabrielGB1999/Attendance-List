@@ -9,13 +9,13 @@ type Student = { id: number; listNumber: number; name: string; group?: string };
 type AttendanceRecord = Record<string, Record<string, string>>; // Month -> Day -> StudentId -> Status
 
 const DAYS_OF_WEEK = [
-  { id: 1, name: 'Mon', fullName: 'Monday' },
-  { id: 2, name: 'Tue', fullName: 'Tuesday' },
-  { id: 3, name: 'Wed', fullName: 'Wednesday' },
-  { id: 4, name: 'Thu', fullName: 'Thursday' },
-  { id: 5, name: 'Fri', fullName: 'Friday' },
-  { id: 6, name: 'Sat', fullName: 'Saturday' },
-  { id: 0, name: 'Sun', fullName: 'Sunday' },
+  { id: 1, name: 'Lun', fullName: 'Lunes' },
+  { id: 2, name: 'Mar', fullName: 'Martes' },
+  { id: 3, name: 'Mie', fullName: 'Miercoles' },
+  { id: 4, name: 'Jue', fullName: 'Jueves' },
+  { id: 5, name: 'Vie', fullName: 'Viernes' },
+  { id: 6, name: 'Sab', fullName: 'Sabado' },
+  { id: 0, name: 'Dom', fullName: 'Domingo' },
 ];
 
 // Components
@@ -24,23 +24,48 @@ function ConfirmModal({
   title, 
   message, 
   onConfirm, 
-  onCancel 
+  onCancel,
+  requirePassword = true
 }: { 
   isOpen: boolean; 
   title: string; 
   message: string; 
-  onConfirm: () => void; 
-  onCancel: () => void; 
+  onConfirm: (password?: string) => void; 
+  onCancel: () => void;
+  requirePassword?: boolean;
 }) {
+  const [password, setPassword] = useState('');
+
   if (!isOpen) return null;
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-xl p-6 max-w-md w-full shadow-2xl">
         <h2 className="text-xl font-bold text-rose-600 mb-2">{title}</h2>
-        <p className="text-slate-600 mb-6">{message}</p>
+        <p className="text-slate-600 mb-4">{message}</p>
+        
+        {requirePassword && (
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-slate-700 mb-1">Contraseña de Administrador</label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full border border-slate-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              placeholder="Ingrese contraseña para confirmar"
+              autoFocus
+            />
+          </div>
+        )}
+
         <div className="flex justify-end gap-3">
-          <button onClick={onCancel} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg font-medium transition-colors">Cancel</button>
-          <button onClick={onConfirm} className="px-4 py-2 bg-rose-600 text-white rounded-lg font-medium hover:bg-rose-700 transition-colors">Delete</button>
+          <button onClick={() => { setPassword(''); onCancel(); }} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg font-medium transition-colors">Cancelar</button>
+          <button 
+            onClick={() => { onConfirm(password); setPassword(''); }} 
+            disabled={requirePassword && !password}
+            className="px-4 py-2 bg-rose-600 text-white rounded-lg font-medium hover:bg-rose-700 transition-colors disabled:opacity-50"
+          >
+            Eliminar
+          </button>
         </div>
       </div>
     </div>
@@ -78,9 +103,18 @@ function SubjectList() {
     fetchSubjects();
   };
 
-  const handleDeleteSubject = async () => {
+  const handleDeleteSubject = async (password?: string) => {
     if (!subjectToDelete) return;
-    await fetch(`/api/subjects/${subjectToDelete.id}`, { method: 'DELETE' });
+    const res = await fetch(`/api/subjects/${subjectToDelete.id}`, { 
+      method: 'DELETE',
+      headers: { 'x-admin-password': password || '' }
+    });
+    
+    if (res.status === 403) {
+      alert('Contraseña incorrecta');
+      return;
+    }
+
     setSubjectToDelete(null);
     fetchSubjects();
   };
@@ -90,7 +124,7 @@ function SubjectList() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
         <h1 className="text-3xl font-bold text-slate-800 flex items-center gap-3">
           <BookOpen className="w-8 h-8 text-indigo-600" />
-          Subjects
+          Materias
         </h1>
         <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
           <a
@@ -98,13 +132,13 @@ function SubjectList() {
             download
             className="flex-1 sm:flex-none justify-center flex items-center gap-2 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 px-4 py-2 rounded-lg font-medium transition-colors"
           >
-            <Download className="w-4 h-4" /> Backup
+            <Download className="w-4 h-4" /> Respaldo
           </a>
           <button 
             onClick={() => setIsAdding(!isAdding)}
             className="flex-1 sm:flex-none justify-center flex items-center gap-2 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 px-4 py-2 rounded-lg font-medium transition-colors"
           >
-            <Plus className="w-4 h-4" /> Add Subject
+            <Plus className="w-4 h-4" /> Añadir Materia
           </button>
         </div>
       </div>
@@ -115,24 +149,24 @@ function SubjectList() {
             type="text"
             value={newSubjectName}
             onChange={(e) => setNewSubjectName(e.target.value)}
-            placeholder="Subject Name (e.g., Mathematics)"
+            placeholder="Nombre de la Materia (ej: Matemática)"
             className="flex-1 border border-slate-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             autoFocus
           />
           <button type="submit" className="bg-indigo-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-indigo-700 transition-colors w-full sm:w-auto">
-            Save
+            Guardar
           </button>
         </form>
       )}
 
       {subjects.length === 0 && !isAdding && (
         <div className="text-center py-12 bg-white rounded-xl border border-slate-200 border-dashed">
-          <p className="text-slate-500 mb-4">No subjects found. Create one to get started.</p>
+          <p className="text-slate-500 mb-4">No hay materias, cree una para empezar</p>
           <button 
             onClick={() => setIsAdding(true)}
             className="inline-flex items-center gap-2 bg-indigo-600 text-white hover:bg-indigo-700 px-4 py-2 rounded-lg font-medium transition-colors"
           >
-            <Plus className="w-4 h-4" /> Add Subject
+            <Plus className="w-4 h-4" /> Añadir Materia
           </button>
         </div>
       )}
@@ -167,8 +201,8 @@ function SubjectList() {
 
       <ConfirmModal
         isOpen={!!subjectToDelete}
-        title="Delete Subject"
-        message={`Are you sure you want to delete "${subjectToDelete?.name}"? This will also delete all courses and attendance records associated with it. This action cannot be undone.`}
+        title="Eliminar Materia"
+        message={`Estás Seguro que queres elimiar "${subjectToDelete?.name}"? Esto va a eliminar todos sus datos de asistencia. ESTA ACCIÓN NO SE PUEDE DESHACER`}
         onConfirm={handleDeleteSubject}
         onCancel={() => setSubjectToDelete(null)}
       />
@@ -220,9 +254,18 @@ function CourseList() {
     );
   };
 
-  const handleDeleteCourse = async () => {
+  const handleDeleteCourse = async (password?: string) => {
     if (!courseToDelete) return;
-    await fetch(`/api/courses/${courseToDelete.id}`, { method: 'DELETE' });
+    const res = await fetch(`/api/courses/${courseToDelete.id}`, { 
+      method: 'DELETE',
+      headers: { 'x-admin-password': password || '' }
+    });
+
+    if (res.status === 403) {
+      alert('Contraseña incorrecta');
+      return;
+    }
+
     setCourseToDelete(null);
     fetchCourses();
   };
@@ -233,16 +276,16 @@ function CourseList() {
         onClick={() => navigate('/')}
         className="mb-6 flex items-center gap-2 text-slate-500 hover:text-indigo-600 transition-colors"
       >
-        <ArrowLeft className="w-4 h-4" /> Back to Subjects
+        <ArrowLeft className="w-4 h-4" /> Volver a Materias
       </button>
       
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
-        <h1 className="text-3xl font-bold text-slate-800">Courses</h1>
+        <h1 className="text-3xl font-bold text-slate-800">Cursos</h1>
         <button 
           onClick={() => setIsAdding(!isAdding)}
           className="w-full sm:w-auto flex justify-center items-center gap-2 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 px-4 py-2 rounded-lg font-medium transition-colors"
         >
-          <Plus className="w-4 h-4" /> Add Course
+          <Plus className="w-4 h-4" /> añadir Curso
         </button>
       </div>
 
@@ -252,13 +295,13 @@ function CourseList() {
             type="text"
             value={newCourseName}
             onChange={(e) => setNewCourseName(e.target.value)}
-            placeholder="Course Name (e.g., Algebra I)"
+            placeholder="Nombre del Curso (ej: Álgebra I)"
             className="w-full border border-slate-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             autoFocus
           />
           
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">Class Days</label>
+            <label className="block text-sm font-medium text-slate-700 mb-2">Días de clase</label>
             <div className="flex flex-wrap gap-2">
               {DAYS_OF_WEEK.map(day => (
                 <button
@@ -279,7 +322,7 @@ function CourseList() {
 
           <div className="flex justify-end mt-2">
             <button type="submit" className="w-full sm:w-auto bg-indigo-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-indigo-700 transition-colors">
-              Save Course
+              Guardar Curso
             </button>
           </div>
         </form>
@@ -287,12 +330,12 @@ function CourseList() {
 
       {courses.length === 0 && !isAdding && (
         <div className="text-center py-12 bg-white rounded-xl border border-slate-200 border-dashed">
-          <p className="text-slate-500 mb-4">No courses found for this subject. Create one to get started.</p>
+          <p className="text-slate-500 mb-4">No hay cursos para esta materia, cree uno</p>
           <button 
             onClick={() => setIsAdding(true)}
             className="inline-flex items-center gap-2 bg-indigo-600 text-white hover:bg-indigo-700 px-4 py-2 rounded-lg font-medium transition-colors"
           >
-            <Plus className="w-4 h-4" /> Add Course
+            <Plus className="w-4 h-4" />Añadir Curso
           </button>
         </div>
       )}
@@ -327,8 +370,8 @@ function CourseList() {
 
       <ConfirmModal
         isOpen={!!courseToDelete}
-        title="Delete Course"
-        message={`Are you sure you want to delete "${courseToDelete?.name}"? This will permanently delete all students and attendance records for this course. This action cannot be undone.`}
+        title="Eliminar Curso"
+        message={`¿Estás seguro que quieres eliminar "${courseToDelete?.name}"? Esto eliminará permanentemente todos los estudiantes y registros de asistencia de este curso. ESTA ACCIÓN NO SE PUEDE DESHACER.`}
         onConfirm={handleDeleteCourse}
         onCancel={() => setCourseToDelete(null)}
       />
@@ -342,14 +385,14 @@ function ExcelGrid() {
   const [course, setCourse] = useState<Course | null>(null);
   const [students, setStudents] = useState<Student[]>([]);
   const [attendance, setAttendance] = useState<AttendanceRecord>({});
-  const [activeTab, setActiveTab] = useState('March');
+  const [activeTab, setActiveTab] = useState('Marzo');
   const [saving, setSaving] = useState(false);
   const [newStudentName, setNewStudentName] = useState('');
   const [newStudentGroup, setNewStudentGroup] = useState('');
   const [isAddingStudent, setIsAddingStudent] = useState(false);
   const [studentToDelete, setStudentToDelete] = useState<Student | null>(null);
 
-  const months = ['March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December', 'Summary'];
+  const months = ['Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Novembiembre', 'Diciembre', 'Porcentaje'];
   const YEAR = 2026;
 
   useEffect(() => {
@@ -412,12 +455,18 @@ function ExcelGrid() {
 
   const saveChanges = async () => {
     setSaving(true);
-    await fetch(`/api/courses/${courseId}/attendance`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ attendance })
-    });
-    setSaving(false);
+    try {
+      await fetch(`/api/courses/${courseId}/attendance`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ attendance })
+      });
+    } catch (error) {
+      console.error('Error saving attendance:', error);
+      alert('Error al guardar los cambios');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleAddStudent = async (e: React.FormEvent) => {
@@ -447,7 +496,7 @@ function ExcelGrid() {
     });
   };
 
-  const handleDeleteStudent = async () => {
+  const handleDeleteStudent = async (password?: string) => {
     if (!studentToDelete) return;
     
     // Update list numbers for remaining students
@@ -456,14 +505,22 @@ function ExcelGrid() {
       .sort((a, b) => a.name.localeCompare(b.name))
       .map((s, index) => ({ ...s, listNumber: index + 1 }));
       
-    setStudents(updatedStudents);
-    setStudentToDelete(null);
-    
-    await fetch(`/api/courses/${courseId}/students`, {
+    const res = await fetch(`/api/courses/${courseId}/students`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'x-admin-password': password || ''
+      },
       body: JSON.stringify({ students: updatedStudents })
     });
+
+    if (res.status === 403) {
+      alert('Contraseña incorrecta');
+      return;
+    }
+
+    setStudents(updatedStudents);
+    setStudentToDelete(null);
   };
 
   const fileInputRef = React.useRef<HTMLInputElement>(null);
@@ -523,7 +580,8 @@ function ExcelGrid() {
         const status = dayData[studentId];
         if (status) {
           totalDays++;
-          if (status === 'P' || status === 'L') presentDays++;
+          if (status === 'P') presentDays++;
+          else if (status === 'T') presentDays += 0.25;
         }
       });
     });
@@ -540,12 +598,12 @@ function ExcelGrid() {
       <div className="bg-white border-b border-slate-200 px-4 py-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shrink-0">
         <div className="flex items-center gap-4">
           <button 
-            onClick={() => navigate(-1)}
+            onClick={() => navigate(`/subjects/${course.subject_id}/courses`)}
             className="p-2 hover:bg-slate-100 rounded-full text-slate-500 transition-colors"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <h1 className="text-xl font-semibold text-slate-800">{course.name} - Attendance</h1>
+          <h1 className="text-xl font-semibold text-slate-800">{course.name} - Presentismo</h1>
         </div>
         <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full sm:w-auto">
           <input 
@@ -560,16 +618,16 @@ function ExcelGrid() {
             className="flex-1 sm:flex-none justify-center flex items-center gap-2 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 px-3 sm:px-4 py-2 rounded-lg font-medium transition-colors text-sm sm:text-base"
           >
             <Upload className="w-4 h-4" />
-            <span className="hidden sm:inline">Import CSV</span>
-            <span className="sm:hidden">Import</span>
+            <span className="hidden sm:inline">Importar CSV</span>
+            <span className="sm:hidden">Importar</span>
           </button>
           <button
             onClick={() => setIsAddingStudent(!isAddingStudent)}
             className="flex-1 sm:flex-none justify-center flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 sm:px-4 py-2 rounded-lg font-medium transition-colors text-sm sm:text-base"
           >
             <Plus className="w-4 h-4" />
-            <span className="hidden sm:inline">Add Student</span>
-            <span className="sm:hidden">Add</span>
+            <span className="hidden sm:inline">añadir alumno</span>
+            <span className="sm:hidden">añadir</span>
           </button>
           <button
             onClick={saveChanges}
@@ -577,8 +635,8 @@ function ExcelGrid() {
             className="flex-1 sm:flex-none justify-center flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-3 sm:px-4 py-2 rounded-lg font-medium transition-colors disabled:opacity-50 text-sm sm:text-base"
           >
             <Save className="w-4 h-4" />
-            <span className="hidden sm:inline">{saving ? 'Saving...' : 'Save Changes'}</span>
-            <span className="sm:hidden">{saving ? '...' : 'Save'}</span>
+            <span className="hidden sm:inline">{saving ? 'Guardando...' : 'Guardar Cambios'}</span>
+            <span className="sm:hidden">{saving ? '...' : 'Guardar'}</span>
           </button>
         </div>
       </div>
@@ -590,7 +648,7 @@ function ExcelGrid() {
               type="text"
               value={newStudentName}
               onChange={(e) => setNewStudentName(e.target.value)}
-              placeholder="Student Name (e.g., John Doe)"
+              placeholder="Nombre del Estudiante"
               className="flex-1 border border-slate-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
               autoFocus
             />
@@ -598,11 +656,11 @@ function ExcelGrid() {
               type="text"
               value={newStudentGroup}
               onChange={(e) => setNewStudentGroup(e.target.value)}
-              placeholder="Group (e.g., A, B) - Optional"
+              placeholder="Grupo"
               className="w-full sm:w-64 border border-slate-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
             <button type="submit" className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors w-full sm:w-auto">
-              Add
+              Añadir
             </button>
           </form>
         </div>
@@ -628,13 +686,13 @@ function ExcelGrid() {
       {/* Excel Grid Container */}
       <div className="flex-1 p-4 md:p-6 overflow-hidden flex flex-col">
         <div className="bg-white shadow-sm border border-slate-200 rounded-xl overflow-auto flex-1">
-          {activeTab === 'Summary' ? (
+          {activeTab === 'Porcentaje' ? (
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200">
-                  <th className="p-3 font-semibold text-slate-700 border-r border-slate-200 sticky left-0 z-20 bg-slate-50 min-w-[140px] max-w-[140px] w-[140px] sm:min-w-[200px] sm:max-w-[200px] sm:w-[200px]">Student Name</th>
+                  <th className="p-3 font-semibold text-slate-700 border-r border-slate-200 sticky left-0 z-20 bg-slate-50 min-w-[140px] max-w-[140px] w-[140px] sm:min-w-[200px] sm:max-w-[200px] sm:w-[200px]">Nombre del Alumno</th>
                   <th className="p-3 font-semibold text-slate-700 border-r border-slate-200 text-center sticky left-[140px] sm:left-[200px] z-20 bg-slate-50 min-w-[40px] max-w-[40px] w-[40px] sm:min-w-[48px] sm:max-w-[48px] sm:w-[48px]">Nº</th>
-                  <th className="p-3 font-semibold text-slate-700 text-center">Attendance %</th>
+                  <th className="p-3 font-semibold text-slate-700 text-center">% de Asistencia</th>
                 </tr>
               </thead>
               <tbody>
@@ -643,7 +701,7 @@ function ExcelGrid() {
                     {groups.length > 1 || group !== 'Ungrouped' ? (
                       <tr className="bg-slate-100 border-b border-slate-200">
                         <td className="p-2 text-sm font-semibold text-slate-700 sticky left-0 z-10 min-w-[140px] max-w-[140px] w-[140px] sm:min-w-[200px] sm:max-w-[200px] sm:w-[200px] bg-slate-100">
-                          Group {group}
+                          Grupo {group}
                         </td>
                         <td className="p-2 text-sm font-semibold text-slate-700 sticky left-[140px] sm:left-[200px] z-10 min-w-[40px] max-w-[40px] w-[40px] sm:min-w-[48px] sm:max-w-[48px] sm:w-[48px] bg-slate-100"></td>
                         <td className="bg-slate-100"></td>
@@ -681,12 +739,12 @@ function ExcelGrid() {
                     {activeTab} {YEAR}
                   </th>
                   <th colSpan={validDays.length} className="p-2 border-r border-slate-300 text-center font-semibold text-slate-700 tracking-widest uppercase text-xs">
-                    Class Days
+                    Días de clase
                   </th>
                 </tr>
                 {/* Row 2: Day Numbers */}
                 <tr className="bg-slate-50 border-b border-slate-200">
-                  <th className="p-2 border-r border-slate-200 min-w-[140px] max-w-[140px] w-[140px] sm:min-w-[200px] sm:max-w-[200px] sm:w-[200px] text-xs text-slate-500 font-medium sticky left-0 z-20 bg-slate-50">Student Name</th>
+                  <th className="p-2 border-r border-slate-200 min-w-[140px] max-w-[140px] w-[140px] sm:min-w-[200px] sm:max-w-[200px] sm:w-[200px] text-xs text-slate-500 font-medium sticky left-0 z-20 bg-slate-50">Nombre del ALumno</th>
                   <th className="p-2 border-r border-slate-200 min-w-[40px] max-w-[40px] w-[40px] sm:min-w-[48px] sm:max-w-[48px] sm:w-[48px] text-center text-xs text-slate-500 font-medium sticky left-[140px] sm:left-[200px] z-20 bg-slate-50">Nº</th>
                   {validDays.map((d, i) => (
                     <th key={i} className={`p-2 border-r border-slate-200 w-12 text-center text-xs text-slate-500 font-medium ${i > 0 && d.date.getDay() === 1 ? 'border-l-2 border-l-slate-400' : ''}`}>
@@ -711,7 +769,7 @@ function ExcelGrid() {
                     {groups.length > 1 || group !== 'Ungrouped' ? (
                       <tr className="bg-slate-100 border-b border-slate-200">
                         <td className="p-2 text-sm font-semibold text-slate-700 sticky left-0 z-10 min-w-[140px] max-w-[140px] w-[140px] sm:min-w-[200px] sm:max-w-[200px] sm:w-[200px] bg-slate-100">
-                          Group {group}
+                          Grupo {group}
                         </td>
                         <td className="p-2 text-sm font-semibold text-slate-700 sticky left-[140px] sm:left-[200px] z-10 min-w-[40px] max-w-[40px] w-[40px] sm:min-w-[48px] sm:max-w-[48px] sm:w-[48px] bg-slate-100"></td>
                         {validDays.map((d, i) => (
@@ -727,7 +785,7 @@ function ExcelGrid() {
                             <button
                               onClick={() => setStudentToDelete(student)}
                               className="p-1 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded transition-colors opacity-0 group-hover:opacity-100 shrink-0"
-                              title="Delete Student"
+                              title="Borrar Alumno"
                             >
                               <Trash2 className="w-3 h-3" />
                             </button>
@@ -748,16 +806,16 @@ function ExcelGrid() {
                                 className={`w-full h-full min-h-[36px] appearance-none bg-transparent text-center text-sm font-medium focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500 cursor-pointer ${
                                   status === 'P' ? 'text-emerald-600 font-bold' :
                                   status === 'A' ? 'text-rose-600 font-bold' :
-                                  status === 'L' ? 'text-amber-600 font-bold' :
-                                  status === 'E' ? 'text-blue-600 font-bold' :
+                                  status === 'T' ? 'text-amber-600 font-bold' :
+                                  status === 'A/P' ? 'text-blue-600 font-bold' :
                                   'text-slate-400 hover:bg-slate-50'
                                 }`}
                               >
                                 <option value=""></option>
                                 <option value="P">P</option>
                                 <option value="A">A</option>
-                                <option value="L">L</option>
-                                <option value="E">E</option>
+                                <option value="T">T</option>
+                                <option value="A/P">A/P</option>
                               </select>
                             </td>
                           );
@@ -771,20 +829,20 @@ function ExcelGrid() {
           )}
         </div>
         
-        {activeTab !== 'Summary' && (
+        {activeTab !== 'Porcentaje' && (
           <div className="mt-4 flex gap-4 text-xs text-slate-500 bg-white p-3 rounded-lg border border-slate-200 inline-flex">
-            <div className="flex items-center gap-1"><span className="font-bold text-emerald-600">P</span> Present</div>
-            <div className="flex items-center gap-1"><span className="font-bold text-rose-600">A</span> Absent</div>
-            <div className="flex items-center gap-1"><span className="font-bold text-amber-600">L</span> Late</div>
-            <div className="flex items-center gap-1"><span className="font-bold text-blue-600">E</span> Excused</div>
+            <div className="flex items-center gap-1"><span className="font-bold text-emerald-600">P</span> Presente</div>
+            <div className="flex items-center gap-1"><span className="font-bold text-rose-600">A</span> Ausente</div>
+            <div className="flex items-center gap-1"><span className="font-bold text-amber-600">T</span> Tarde</div>
+            <div className="flex items-center gap-1"><span className="font-bold text-blue-600">A/P</span> Ausente con presencia</div>
           </div>
         )}
       </div>
 
       <ConfirmModal
         isOpen={!!studentToDelete}
-        title="Delete Student"
-        message={`Are you sure you want to delete "${studentToDelete?.name}"? This will permanently remove them from the course and delete all their attendance records. This action cannot be undone.`}
+        title="Eliminar Estudiante"
+        message={`¿Estás seguro que quieres eliminar a "${studentToDelete?.name}"? Esto lo eliminará permanentemente del curso y borrará todos sus registros de asistencia. ESTA ACCIÓN NO SE PUEDE DESHACER.`}
         onConfirm={handleDeleteStudent}
         onCancel={() => setStudentToDelete(null)}
       />
