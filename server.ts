@@ -5,6 +5,10 @@ import path from 'path';
 import archiver from 'archiver';
 import * as xlsx from 'xlsx';
 import fs from 'fs';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Ensure data directory exists
 const dataDir = process.env.DATA_DIR || path.join(process.cwd(), 'data');
