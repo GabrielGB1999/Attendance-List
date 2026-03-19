@@ -581,7 +581,7 @@ function ExcelGrid() {
         if (status) {
           totalDays++;
           if (status === 'P') presentDays++;
-          else if (status === 'T') presentDays += 0.75;
+          else if (status === 'T') presentDays += 0.25;
         }
       });
     });
@@ -688,11 +688,11 @@ function ExcelGrid() {
         <div className="bg-white shadow-sm border border-slate-200 rounded-xl overflow-auto flex-1">
           {activeTab === 'Porcentaje' ? (
             <table className="w-full text-left border-collapse">
-              <thead>
+              <thead className="sticky top-0 z-30 shadow-sm">
                 <tr className="bg-slate-50 border-b border-slate-200">
-                  <th className="p-3 font-semibold text-slate-700 border-r border-slate-200 sticky left-0 z-20 bg-slate-50 min-w-[140px] max-w-[140px] w-[140px] sm:min-w-[200px] sm:max-w-[200px] sm:w-[200px]">Nombre del Alumno</th>
-                  <th className="p-3 font-semibold text-slate-700 border-r border-slate-200 text-center sticky left-[140px] sm:left-[200px] z-20 bg-slate-50 min-w-[40px] max-w-[40px] w-[40px] sm:min-w-[48px] sm:max-w-[48px] sm:w-[48px]">Nº</th>
-                  <th className="p-3 font-semibold text-slate-700 text-center">% de Asistencia</th>
+                  <th className="p-3 font-semibold text-slate-700 border-r border-slate-200 sticky left-0 z-40 bg-slate-50 min-w-[140px] max-w-[140px] w-[140px] sm:min-w-[200px] sm:max-w-[200px] sm:w-[200px]">Nombre del Alumno</th>
+                  <th className="p-3 font-semibold text-slate-700 border-r border-slate-200 text-center sticky left-[140px] sm:left-[200px] z-40 bg-slate-50 min-w-[40px] max-w-[40px] w-[40px] sm:min-w-[48px] sm:max-w-[48px] sm:w-[48px]">Nº</th>
+                  <th className="p-3 font-semibold text-slate-700 text-center bg-slate-50">% de Asistencia</th>
                 </tr>
               </thead>
               <tbody>
@@ -732,32 +732,32 @@ function ExcelGrid() {
             </table>
           ) : (
             <table className="w-full text-left border-collapse">
-              <thead>
+              <thead className="sticky top-0 z-30 shadow-sm">
                 {/* Row 1: Month Header */}
                 <tr className="bg-slate-100 border-b border-slate-300">
-                  <th colSpan={2} className="p-2 border-r border-slate-300 bg-slate-200 text-center font-semibold text-slate-700 sticky left-0 z-20">
+                  <th colSpan={2} className="p-2 border-r border-slate-300 bg-slate-200 text-center font-semibold text-slate-700 sticky left-0 z-40">
                     {activeTab} {YEAR}
                   </th>
-                  <th colSpan={validDays.length} className="p-2 border-r border-slate-300 text-center font-semibold text-slate-700 tracking-widest uppercase text-xs">
+                  <th colSpan={validDays.length} className="p-2 border-r border-slate-300 text-center font-semibold text-slate-700 tracking-widest uppercase text-xs bg-slate-100">
                     Días de clase
                   </th>
                 </tr>
                 {/* Row 2: Day Numbers */}
                 <tr className="bg-slate-50 border-b border-slate-200">
-                  <th className="p-2 border-r border-slate-200 min-w-[140px] max-w-[140px] w-[140px] sm:min-w-[200px] sm:max-w-[200px] sm:w-[200px] text-xs text-slate-500 font-medium sticky left-0 z-20 bg-slate-50">Nombre del ALumno</th>
-                  <th className="p-2 border-r border-slate-200 min-w-[40px] max-w-[40px] w-[40px] sm:min-w-[48px] sm:max-w-[48px] sm:w-[48px] text-center text-xs text-slate-500 font-medium sticky left-[140px] sm:left-[200px] z-20 bg-slate-50">Nº</th>
+                  <th className="p-2 border-r border-slate-200 min-w-[140px] max-w-[140px] w-[140px] sm:min-w-[200px] sm:max-w-[200px] sm:w-[200px] text-xs text-slate-500 font-medium sticky left-0 z-40 bg-slate-50">Nombre del ALumno</th>
+                  <th className="p-2 border-r border-slate-200 min-w-[40px] max-w-[40px] w-[40px] sm:min-w-[48px] sm:max-w-[48px] sm:w-[48px] text-center text-xs text-slate-500 font-medium sticky left-[140px] sm:left-[200px] z-40 bg-slate-50">Nº</th>
                   {validDays.map((d, i) => (
-                    <th key={i} className={`p-2 border-r border-slate-200 w-12 text-center text-xs text-slate-500 font-medium ${i > 0 && d.date.getDay() === 1 ? 'border-l-2 border-l-slate-400' : ''}`}>
+                    <th key={i} className={`p-2 border-r border-slate-200 w-12 text-center text-xs text-slate-500 font-medium bg-slate-50 ${i > 0 && d.date.getDay() === 1 ? 'border-l-2 border-l-slate-400' : ''}`}>
                       {d.day}
                     </th>
                   ))}
                 </tr>
                 {/* Row 3: Day of Week */}
                 <tr className="bg-slate-50 border-b-2 border-slate-300">
-                  <th className="p-1 border-r border-slate-200 sticky left-0 z-20 bg-slate-50 min-w-[140px] max-w-[140px] w-[140px] sm:min-w-[200px] sm:max-w-[200px] sm:w-[200px]"></th>
-                  <th className="p-1 border-r border-slate-200 sticky left-[140px] sm:left-[200px] z-20 bg-slate-50 min-w-[40px] max-w-[40px] w-[40px] sm:min-w-[48px] sm:max-w-[48px] sm:w-[48px]"></th>
+                  <th className="p-1 border-r border-slate-200 sticky left-0 z-40 bg-slate-50 min-w-[140px] max-w-[140px] w-[140px] sm:min-w-[200px] sm:max-w-[200px] sm:w-[200px]"></th>
+                  <th className="p-1 border-r border-slate-200 sticky left-[140px] sm:left-[200px] z-40 bg-slate-50 min-w-[40px] max-w-[40px] w-[40px] sm:min-w-[48px] sm:max-w-[48px] sm:w-[48px]"></th>
                   {validDays.map((d, i) => (
-                    <th key={i} className={`p-1 border-r border-slate-200 text-center text-[10px] text-slate-400 font-medium ${i > 0 && d.date.getDay() === 1 ? 'border-l-2 border-l-slate-400' : ''}`}>
+                    <th key={i} className={`p-1 border-r border-slate-200 text-center text-[10px] text-slate-400 font-medium bg-slate-50 ${i > 0 && d.date.getDay() === 1 ? 'border-l-2 border-l-slate-400' : ''}`}>
                       {d.dayOfWeek}
                     </th>
                   ))}
