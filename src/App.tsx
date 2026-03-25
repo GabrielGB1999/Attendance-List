@@ -391,6 +391,45 @@ function ExcelGrid() {
   const [newStudentGroup, setNewStudentGroup] = useState('');
   const [isAddingStudent, setIsAddingStudent] = useState(false);
   const [studentToDelete, setStudentToDelete] = useState<Student | null>(null);
+  const [socket, setSocket] = useState<WebSocket | null>(null);
+
+  useEffect(() => {
+    if (!courseId) return;
+
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const ws = new WebSocket(`${protocol}//${window.location.host}`);
+
+    ws.onopen = () => {
+      console.log('Connected to attendance sync');
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const message = JSON.parse(event.data);
+        if (String(message.courseId) !== String(courseId)) return;
+
+        if (message.type === 'attendance:updated') {
+          setAttendance(prev => {
+            const next = { ...prev };
+            if (!next[message.month]) next[message.month] = {};
+            if (!next[message.month][message.day]) next[message.month][message.day] = {};
+            next[message.month][message.day][message.studentId] = message.status;
+            return next;
+          });
+        } else if (message.type === 'attendance:full_update') {
+          setAttendance(message.attendance);
+        }
+      } catch (e) {
+        console.error('Error parsing WS message:', e);
+      }
+    };
+
+    setSocket(ws);
+
+    return () => {
+      ws.close();
+    };
+  }, [courseId]);
 
   const months = ['Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Novembiembre', 'Diciembre', 'Porcentaje'];
   const YEAR = 2026;
@@ -451,6 +490,18 @@ function ExcelGrid() {
       newAttendance[activeTab][day][studentId] = status;
       return newAttendance;
     });
+
+    // Send real-time update via WebSocket
+    if (socket && socket.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({
+        type: 'attendance:update',
+        courseId,
+        month: activeTab,
+        day,
+        studentId,
+        status
+      }));
+    }
   };
 
   const saveChanges = async () => {

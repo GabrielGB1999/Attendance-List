@@ -6,6 +6,8 @@ import archiver from 'archiver';
 import * as xlsx from 'xlsx';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
+import { WebSocketServer, WebSocket } from 'ws';
+import { createServer } from 'http';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -45,9 +47,52 @@ try {
 
 async function startServer() {
   const app = express();
+  const server = createServer(app);
+  const wss = new WebSocketServer({ server });
   const PORT = process.env.PORT || 3000;
 
   app.use(express.json());
+
+  // WebSocket handling
+  wss.on('connection', (ws) => {
+    ws.on('message', (data) => {
+      try {
+        const message = JSON.parse(data.toString());
+        
+        if (message.type === 'attendance:update') {
+          const { courseId, month, day, studentId, status } = message;
+          
+          // Update DB
+          db.transaction(() => {
+            const course = db.prepare('SELECT attendance_json FROM courses WHERE id = ?').get(courseId);
+            if (course) {
+              const attendance = JSON.parse((course as any).attendance_json || '{}');
+              if (!attendance[month]) attendance[month] = {};
+              if (!attendance[month][day]) attendance[month][day] = {};
+              attendance[month][day][studentId] = status;
+              db.prepare('UPDATE courses SET attendance_json = ? WHERE id = ?').run(JSON.stringify(attendance), courseId);
+            }
+          })();
+
+          // Broadcast to all other clients
+          wss.clients.forEach((client) => {
+            if (client !== ws && client.readyState === WebSocket.OPEN) {
+              client.send(JSON.stringify({
+                type: 'attendance:updated',
+                courseId,
+                month,
+                day,
+                studentId,
+                status
+              }));
+            }
+          });
+        }
+      } catch (e) {
+        console.error('WS Error:', e);
+      }
+    });
+  });
 
   const verifyAdmin = (req: express.Request, res: express.Response, next: express.NextFunction) => {
     const password = req.headers['x-admin-password'];
@@ -108,9 +153,49 @@ async function startServer() {
   });
 
   app.post('/api/courses/:id/attendance', (req, res) => {
-    const { attendance } = req.body;
-    db.prepare('UPDATE courses SET attendance_json = ? WHERE id = ?').run(JSON.stringify(attendance), req.params.id);
-    res.json({ success: true });
+    const { attendance: incomingAttendance } = req.body;
+    const courseId = req.params.id;
+
+    try {
+      let mergedAttendance: any = {};
+      db.transaction(() => {
+        const course = db.prepare('SELECT attendance_json FROM courses WHERE id = ?').get(courseId);
+        if (!course) {
+          throw new Error('Course not found');
+        }
+
+        mergedAttendance = JSON.parse((course as any).attendance_json || '{}');
+        
+        // Deep merge incomingAttendance into mergedAttendance
+        for (const month in incomingAttendance) {
+          if (!mergedAttendance[month]) mergedAttendance[month] = {};
+          for (const day in incomingAttendance[month]) {
+            if (!mergedAttendance[month][day]) mergedAttendance[month][day] = {};
+            for (const studentId in incomingAttendance[month][day]) {
+              mergedAttendance[month][day][studentId] = incomingAttendance[month][day][studentId];
+            }
+          }
+        }
+
+        db.prepare('UPDATE courses SET attendance_json = ? WHERE id = ?').run(JSON.stringify(mergedAttendance), courseId);
+      })();
+
+      // Broadcast the merged state to all clients
+      wss.clients.forEach((client) => {
+        if (client.readyState === WebSocket.OPEN) {
+          client.send(JSON.stringify({
+            type: 'attendance:full_update',
+            courseId,
+            attendance: mergedAttendance
+          }));
+        }
+      });
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error merging attendance:', error);
+      res.status(500).json({ error: 'Failed to save attendance' });
+    }
   });
 
   app.post('/api/courses/:id/students', (req, res, next) => {
@@ -189,7 +274,7 @@ async function startServer() {
     });
   }
 
-  app.listen(Number(PORT), '0.0.0.0', () => {
+  server.listen(Number(PORT), '0.0.0.0', () => {
     console.log(`Server running on http://localhost:${PORT}`);
   });
 }
