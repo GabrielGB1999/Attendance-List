@@ -8,6 +8,8 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { WebSocketServer, WebSocket } from 'ws';
 import { createServer } from 'http';
+import multer from 'multer';
+import AdmZip from 'adm-zip';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -226,6 +228,8 @@ async function startServer() {
     res.attachment('attendance_backup.zip');
     archive.pipe(res);
 
+    archive.append(JSON.stringify({ subjects, courses }, null, 2), { name: 'backup_data.json' });
+
     for (const subject of subjects as any[]) {
       const subjectCourses = courses.filter((c: any) => c.subject_id === subject.id);
       for (const course of subjectCourses as any[]) {
@@ -258,6 +262,65 @@ async function startServer() {
     }
 
     archive.finalize();
+  });
+
+  const upload = multer({ storage: multer.memoryStorage() });
+
+  app.post('/api/restore', verifyAdmin, upload.single('backup'), (req, res) => {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    try {
+      const zip = new AdmZip(req.file.buffer);
+      const zipEntries = zip.getEntries();
+      
+      let backupDataJson = null;
+      
+      for (const entry of zipEntries) {
+        if (entry.entryName === 'backup_data.json') {
+          backupDataJson = entry.getData().toString('utf8');
+          break;
+        }
+      }
+
+      if (backupDataJson) {
+        const { subjects, courses } = JSON.parse(backupDataJson);
+        
+        db.transaction(() => {
+          db.prepare('DELETE FROM courses').run();
+          db.prepare('DELETE FROM subjects').run();
+          
+          if (subjects && subjects.length > 0) {
+            const insertSubject = db.prepare('INSERT INTO subjects (id, name) VALUES (?, ?)');
+            for (const sub of subjects) {
+              insertSubject.run(sub.id, sub.name);
+            }
+          }
+          
+          if (courses && courses.length > 0) {
+            const insertCourse = db.prepare('INSERT INTO courses (id, subject_id, name, schedule_json, students_json, attendance_json) VALUES (?, ?, ?, ?, ?, ?)');
+            for (const c of courses) {
+              insertCourse.run(c.id, c.subject_id, c.name, c.schedule_json, c.students_json, c.attendance_json);
+            }
+          }
+        })();
+
+        // Broadcast a refresh to all clients to reload their data
+        wss.clients.forEach((client) => {
+          if (client.readyState === WebSocket.OPEN) {
+            client.send(JSON.stringify({ type: 'restore:complete' }));
+          }
+        });
+
+        return res.json({ success: true });
+      } else {
+        return res.status(400).json({ error: 'The uploaded file does not contain a valid backup_data.json. Legacy Excel-only backups cannot be restored automatically.' });
+      }
+    } catch (error: any) {
+      console.error('Restore error:', error);
+      return res.status(500).json({ error: 'Failed to restore backup: ' + error.message });
+    }
   });
 
   // Vite middleware for development

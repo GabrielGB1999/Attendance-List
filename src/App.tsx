@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useNavigate, useParams } from 'react-router-dom';
 import { BookOpen, ChevronRight, ArrowLeft, Save, Plus, Trash2, Download, Upload } from 'lucide-react';
 
@@ -77,6 +77,9 @@ function SubjectList() {
   const [newSubjectName, setNewSubjectName] = useState('');
   const [isAdding, setIsAdding] = useState(false);
   const [subjectToDelete, setSubjectToDelete] = useState<Subject | null>(null);
+  const [fileToRestore, setFileToRestore] = useState<File | null>(null);
+  const [isRestoring, setIsRestoring] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchSubjects = () => {
     fetch('/api/subjects')
@@ -119,6 +122,56 @@ function SubjectList() {
     fetchSubjects();
   };
 
+  const handleRestoreClick = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setFileToRestore(file);
+    }
+    // Clear the input value so the same file could be selected again if needed
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const handleRestoreSubmit = async (password?: string) => {
+    if (!fileToRestore) return;
+    
+    setIsRestoring(true);
+    const formData = new FormData();
+    formData.append('backup', fileToRestore);
+
+    try {
+      const res = await fetch('/api/restore', {
+        method: 'POST',
+        headers: {
+          'x-admin-password': password || ''
+        },
+        body: formData
+      });
+
+      if (res.status === 403) {
+        alert('Contraseña incorrecta');
+      } else if (res.ok) {
+        alert('Restauración completada con éxito');
+        fetchSubjects(); // Refresh subjects locally
+      } else {
+        const errorData = await res.json();
+        alert('Error en la restauración: ' + (errorData.error || 'Error desconocido'));
+      }
+    } catch (err: any) {
+      alert('Error en la restauración: ' + err.message);
+    } finally {
+      setIsRestoring(false);
+      setFileToRestore(null);
+    }
+  };
+
   return (
     <div className="max-w-4xl mx-auto p-4 md:p-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
@@ -127,6 +180,21 @@ function SubjectList() {
           Materias
         </h1>
         <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+          <input
+            type="file"
+            accept=".zip"
+            ref={fileInputRef}
+            onChange={handleFileChange}
+            className="hidden"
+          />
+          <button
+            onClick={handleRestoreClick}
+            disabled={isRestoring}
+            className="flex-1 sm:flex-none justify-center flex items-center gap-2 bg-amber-50 text-amber-600 hover:bg-amber-100 px-4 py-2 rounded-lg font-medium transition-colors disabled:opacity-50"
+            title="Restaurar de backup"
+          >
+            <Upload className="w-4 h-4" /> {isRestoring ? 'Restaurando...' : 'Restaurar'}
+          </button>
           <a
             href="/api/backup"
             download
@@ -205,6 +273,14 @@ function SubjectList() {
         message={`Estás Seguro que queres elimiar "${subjectToDelete?.name}"? Esto va a eliminar todos sus datos de asistencia. ESTA ACCIÓN NO SE PUEDE DESHACER`}
         onConfirm={handleDeleteSubject}
         onCancel={() => setSubjectToDelete(null)}
+      />
+
+      <ConfirmModal
+        isOpen={!!fileToRestore}
+        title="Restaurar Base de Datos"
+        message={`Estás a punto de restaurar la base de datos usando el archivo "${fileToRestore?.name}". Esto reemplazará TODOS los datos actuales con los del archivo. ESTA ACCIÓN NO SE PUEDE DESHACER.`}
+        onConfirm={handleRestoreSubmit}
+        onCancel={() => setFileToRestore(null)}
       />
     </div>
   );
@@ -406,6 +482,13 @@ function ExcelGrid() {
     ws.onmessage = (event) => {
       try {
         const message = JSON.parse(event.data);
+
+        if (message.type === 'restore:complete') {
+          // If a full restore happens, just reload the page to get the freshest db state
+          window.location.reload();
+          return;
+        }
+
         if (String(message.courseId) !== String(courseId)) return;
 
         if (message.type === 'attendance:updated') {
