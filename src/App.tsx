@@ -1,12 +1,19 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useNavigate, useParams } from 'react-router-dom';
 import { BookOpen, ChevronRight, ArrowLeft, Save, Plus, Trash2, Download, Upload } from 'lucide-react';
+import { getAttendancePercentage, getAttendanceStats, type AttendanceRecord } from './lib/attendance';
 
 // Types
 type Subject = { id: number; name: string };
-type Course = { id: number; subject_id: number; name: string; schedule?: number[] };
-type Student = { id: number; listNumber: number; name: string; group?: string };
-type AttendanceRecord = Record<string, Record<string, string>>; // Month -> Day -> StudentId -> Status
+type Course = { id: number; subject_id: number; name: string; schedule?: number[]; year?: number };
+type Student = { id: string; listNumber: number; name: string; group?: string };
+
+// Small shared helper: fetch JSON and throw on non-2xx so callers can .catch()
+async function fetchJson(input: RequestInfo, init?: RequestInit) {
+  const res = await fetch(input, init);
+  if (!res.ok) throw new Error(`Request failed (${res.status})`);
+  return res.json();
+}
 
 const DAYS_OF_WEEK = [
   { id: 1, name: 'Lun', fullName: 'Lunes' },
@@ -82,9 +89,12 @@ function SubjectList() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchSubjects = () => {
-    fetch('/api/subjects')
-      .then(res => res.json())
-      .then(setSubjects);
+    fetchJson('/api/subjects')
+      .then(setSubjects)
+      .catch(err => {
+        console.error('Error cargando materias:', err);
+        alert('No se pudieron cargar las materias. Verifique la conexión.');
+      });
   };
 
   useEffect(() => {
@@ -291,14 +301,18 @@ function CourseList() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [newCourseName, setNewCourseName] = useState('');
   const [selectedDays, setSelectedDays] = useState<number[]>([]);
+  const [courseYear, setCourseYear] = useState<number>(new Date().getFullYear());
   const [isAdding, setIsAdding] = useState(false);
   const [courseToDelete, setCourseToDelete] = useState<Course | null>(null);
   const navigate = useNavigate();
 
   const fetchCourses = () => {
-    fetch(`/api/subjects/${subjectId}/courses`)
-      .then(res => res.json())
-      .then(setCourses);
+    fetchJson(`/api/subjects/${subjectId}/courses`)
+      .then(setCourses)
+      .catch(err => {
+        console.error('Error cargando cursos:', err);
+        alert('No se pudieron cargar los cursos. Verifique la conexión.');
+      });
   };
 
   useEffect(() => {
@@ -315,11 +329,12 @@ function CourseList() {
     await fetch(`/api/subjects/${subjectId}/courses`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: newCourseName, schedule: selectedDays })
+      body: JSON.stringify({ name: newCourseName, schedule: selectedDays, year: courseYear })
     });
-    
+
     setNewCourseName('');
     setSelectedDays([]);
+    setCourseYear(new Date().getFullYear());
     setIsAdding(false);
     fetchCourses();
   };
@@ -394,6 +409,18 @@ function CourseList() {
                 </button>
               ))}
             </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-2">Año lectivo</label>
+            <input
+              type="number"
+              value={courseYear}
+              onChange={(e) => setCourseYear(Number(e.target.value))}
+              min={2000}
+              max={2100}
+              className="w-32 border border-slate-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
           </div>
 
           <div className="flex justify-end mt-2">
@@ -514,19 +541,23 @@ function ExcelGrid() {
     };
   }, [courseId]);
 
-  const months = ['Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Novembiembre', 'Diciembre', 'Porcentaje'];
-  const YEAR = 2026;
+  const months = ['Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre', 'Porcentaje'];
+  const YEAR = course?.year || 2026;
 
   useEffect(() => {
-    fetch(`/api/courses/${courseId}`)
-      .then(res => res.json())
+    fetchJson(`/api/courses/${courseId}`)
       .then(data => {
         setCourse(data);
         const sortedStudents = (data.students || [])
+          .map((s: Student) => ({ ...s, id: String(s.id) })) // coerce legacy numeric ids to string
           .sort((a: Student, b: Student) => a.name.localeCompare(b.name))
           .map((s: Student, index: number) => ({ ...s, listNumber: index + 1 }));
         setStudents(sortedStudents);
         setAttendance(data.attendance || {});
+      })
+      .catch(err => {
+        console.error('Error cargando el curso:', err);
+        alert('No se pudo cargar el curso. Verifique la conexión.');
       });
   }, [courseId]);
 
@@ -565,7 +596,7 @@ function ExcelGrid() {
   
   const groups = Object.keys(groupedStudents).sort();
 
-  const handleAttendanceChange = (studentId: number, day: number, status: string) => {
+  const handleAttendanceChange = (studentId: string, day: number, status: string) => {
     setAttendance(prev => {
       const newAttendance = { ...prev };
       if (!newAttendance[activeTab]) newAttendance[activeTab] = {};
@@ -608,7 +639,7 @@ function ExcelGrid() {
     if (!newStudentName.trim()) return;
 
     const newStudent: Student = {
-      id: Date.now(), // simple ID generation
+      id: crypto.randomUUID(), // collision-free unique ID
       listNumber: 0,
       name: newStudentName,
       group: newStudentGroup.trim() || undefined
@@ -675,7 +706,7 @@ function ExcelGrid() {
         const [name, group] = line.split(',').map(s => s.trim());
         if (name && name.toLowerCase() !== 'name' && name.toLowerCase() !== 'student name') {
           newStudents.push({
-            id: Date.now() + index, // Ensure unique ID
+            id: crypto.randomUUID(), // collision-free unique ID
             listNumber: 0,
             name,
             group: group || undefined
@@ -705,45 +736,8 @@ function ExcelGrid() {
     }
   };
 
-  const getPercentage = (studentId: number) => {
-    let totalDays = 0;
-    let presentDays = 0;
-
-    Object.values(attendance).forEach(monthData => {
-      Object.values(monthData).forEach(dayData => {
-        const status = dayData[studentId];
-        if (status) {
-          totalDays++;
-          if (status === 'P') presentDays++;
-          else if (status === 'T') presentDays += 0.75;
-        }
-      });
-    });
-
-    if (totalDays === 0) return 0;
-    return Math.round((presentDays / totalDays) * 100);
-  };
-
-  const getStats = (studentId: number) => {
-    let clasesDadas = 0;
-    let presentes = 0;
-    let ausentes = 0;
-    let tardes = 0;
-
-    Object.values(attendance).forEach(monthData => {
-      Object.values(monthData).forEach(dayData => {
-        const status = dayData[studentId];
-        if (status) {
-          clasesDadas++;
-          if (status === 'P') presentes++;
-          else if (status === 'A' || status === 'A/P') ausentes++;
-          else if (status === 'T') tardes++;
-        }
-      });
-    });
-
-    return { clasesDadas, presentes, ausentes, tardes };
-  };
+  const getPercentage = (studentId: Student['id']) => getAttendancePercentage(attendance, studentId);
+  const getStats = (studentId: Student['id']) => getAttendanceStats(attendance, studentId);
 
   if (!course) return <div className="p-8 text-center text-slate-500">Loading...</div>;
 
