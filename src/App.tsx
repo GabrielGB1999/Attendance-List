@@ -715,7 +715,7 @@ function ExcelGrid() {
         if (status) {
           totalDays++;
           if (status === 'P') presentDays++;
-          else if (status === 'T') presentDays += 0.25;
+          else if (status === 'T') presentDays += 0.75;
         }
       });
     });
