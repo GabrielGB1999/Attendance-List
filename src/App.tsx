@@ -708,7 +708,7 @@ function ExcelGrid() {
   const getPercentage = (studentId: number) => {
     let totalDays = 0;
     let presentDays = 0;
-    
+
     Object.values(attendance).forEach(monthData => {
       Object.values(monthData).forEach(dayData => {
         const status = dayData[studentId];
@@ -722,6 +722,27 @@ function ExcelGrid() {
 
     if (totalDays === 0) return 0;
     return Math.round((presentDays / totalDays) * 100);
+  };
+
+  const getStats = (studentId: number) => {
+    let clasesDadas = 0;
+    let presentes = 0;
+    let ausentes = 0;
+    let tardes = 0;
+
+    Object.values(attendance).forEach(monthData => {
+      Object.values(monthData).forEach(dayData => {
+        const status = dayData[studentId];
+        if (status) {
+          clasesDadas++;
+          if (status === 'P') presentes++;
+          else if (status === 'A' || status === 'A/P') ausentes++;
+          else if (status === 'T') tardes++;
+        }
+      });
+    });
+
+    return { clasesDadas, presentes, ausentes, tardes };
   };
 
   if (!course) return <div className="p-8 text-center text-slate-500">Loading...</div>;
@@ -827,6 +848,10 @@ function ExcelGrid() {
                   <th className="p-3 font-semibold text-slate-700 border-r border-slate-200 sticky left-0 z-40 bg-slate-50 min-w-[140px] max-w-[140px] w-[140px] sm:min-w-[200px] sm:max-w-[200px] sm:w-[200px]">Nombre del Alumno</th>
                   <th className="p-3 font-semibold text-slate-700 border-r border-slate-200 text-center sticky left-[140px] sm:left-[200px] z-40 bg-slate-50 min-w-[40px] max-w-[40px] w-[40px] sm:min-w-[48px] sm:max-w-[48px] sm:w-[48px]">Nº</th>
                   <th className="p-3 font-semibold text-slate-700 text-center bg-slate-50">% de Asistencia</th>
+                  <th className="p-3 font-semibold text-slate-700 text-center bg-slate-50">Clases Dadas</th>
+                  <th className="p-3 font-semibold text-slate-700 text-center bg-slate-50">Presentes</th>
+                  <th className="p-3 font-semibold text-slate-700 text-center bg-slate-50">Ausentes</th>
+                  <th className="p-3 font-semibold text-slate-700 text-center bg-slate-50">Tardes</th>
                 </tr>
               </thead>
               <tbody>
@@ -839,9 +864,15 @@ function ExcelGrid() {
                         </td>
                         <td className="p-2 text-sm font-semibold text-slate-700 sticky left-[140px] sm:left-[200px] z-10 min-w-[40px] max-w-[40px] w-[40px] sm:min-w-[48px] sm:max-w-[48px] sm:w-[48px] bg-slate-100"></td>
                         <td className="bg-slate-100"></td>
+                        <td className="bg-slate-100"></td>
+                        <td className="bg-slate-100"></td>
+                        <td className="bg-slate-100"></td>
+                        <td className="bg-slate-100"></td>
                       </tr>
                     ) : null}
-                    {groupedStudents[group].map(student => (
+                    {groupedStudents[group].map(student => {
+                      const stats = getStats(student.id);
+                      return (
                       <tr key={student.id} className="border-b border-slate-100 hover:bg-slate-50 group">
                         <td className="p-0 border-r border-slate-200 font-medium text-slate-700 sticky left-0 z-10 bg-white group-hover:bg-slate-50 min-w-[140px] max-w-[140px] w-[140px] sm:min-w-[200px] sm:max-w-[200px] sm:w-[200px]">
                           <div className="p-3">
@@ -851,15 +882,20 @@ function ExcelGrid() {
                         <td className="p-3 border-r border-slate-200 text-center text-slate-500 sticky left-[140px] sm:left-[200px] z-10 bg-white group-hover:bg-slate-50 min-w-[40px] max-w-[40px] w-[40px] sm:min-w-[48px] sm:max-w-[48px] sm:w-[48px]">{student.listNumber}</td>
                         <td className="p-3 text-center">
                           <span className={`inline-flex items-center justify-center px-2.5 py-1 rounded-full text-sm font-medium ${
-                            getPercentage(student.id) >= 80 ? 'bg-emerald-100 text-emerald-800' : 
-                            getPercentage(student.id) >= 60 ? 'bg-amber-100 text-amber-800' : 
+                            getPercentage(student.id) >= 80 ? 'bg-emerald-100 text-emerald-800' :
+                            getPercentage(student.id) >= 60 ? 'bg-amber-100 text-amber-800' :
                             'bg-rose-100 text-rose-800'
                           }`}>
                             {getPercentage(student.id)}%
                           </span>
                         </td>
+                        <td className="p-3 text-center text-slate-600">{stats.clasesDadas}</td>
+                        <td className="p-3 text-center text-emerald-600 font-medium">{stats.presentes}</td>
+                        <td className="p-3 text-center text-rose-600 font-medium">{stats.ausentes}</td>
+                        <td className="p-3 text-center text-amber-600 font-medium">{stats.tardes}</td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </React.Fragment>
                 ))}
               </tbody>
