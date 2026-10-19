@@ -358,11 +358,14 @@ async function startServer() {
         const ws = xlsx.utils.aoa_to_sheet(wsData);
         xlsx.utils.book_append_sheet(wb, ws, 'Students');
 
-        const attData = [['Month', 'Day', 'Student ID', 'Status']];
+        const studentNames = new Map<string, string>(
+          students.map((s: any) => [String(s.id), s.name])
+        );
+        const attData = [['Month', 'Day', 'Student ID', 'Student Name', 'Status']];
         for (const month in attendance) {
           for (const day in attendance[month]) {
             for (const studentId in attendance[month][day]) {
-              attData.push([month, day, studentId, attendance[month][day][studentId]]);
+              attData.push([month, day, studentId, studentNames.get(studentId) || '', attendance[month][day][studentId]]);
             }
           }
         }
